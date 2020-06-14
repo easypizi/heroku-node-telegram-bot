@@ -121,6 +121,7 @@ bot.on("text", (msg) => {
           /getkdr - Get your kill damage ratio and total average accuracy.
           /getbest - Get best weapon in each category, depends on kill.
           /last - get stats of your last match result. 
+          /stattrak - get all kill stats.
           /reset - Drop off all search data.
         `
     );
