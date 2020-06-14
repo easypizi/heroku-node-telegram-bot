@@ -33,7 +33,6 @@ let allWeaponsID = {
   34: "MP9",
   35: "Nova",
   36: "P250",
-  37: "Ballistic Shield",
   38: "SCAR-20",
   39: "SG 553",
   40: "SSG 08",
@@ -46,18 +45,9 @@ let allWeaponsID = {
   47: "Decoy Grenade",
   48: "Incendiary Grenade",
   49: "C4 Explosive",
-  50: "Kevlar Vest",
-  51: "Kevlar + Helmet",
-  52: "Heavy Assault Suit",
-  54: "item_nvg",
-  55: "Defuse Kit",
-  56: "Rescue Kit",
-  57: "Medi-Shot",
-  58: "Music Kit",
   59: "Knife",
   60: "M4A1-S",
   61: "USP-S",
-  62: "Trade Up Contract",
   63: "CZ75-Auto",
   64: "R8 Revolver",
   74: "Knife",
@@ -127,9 +117,10 @@ bot.on("text", (msg) => {
       msg.chat.id,
       `Hello ${name}! This is a list of all possible commands: 
         
-            /getkdr - Get your average damage and total average accuracy.
-            /getbest - Get best weapon in each category, depends on damage.
-            /reset - Drop off all search data.
+          /getkdr - Get your kill damage ratio and total average accuracy.
+          /getbest - Get best weapon in each category, depends on damage.
+          /last - get stats of your last match result. 
+          /reset - Drop off all search data.
         `
     );
     return;
@@ -251,7 +242,6 @@ const getUserStats = (steamId) => {
   }
   try {
     steam.getUserStats(steamId, "730").then((summary) => {
-      console.log(summary);
       this.summary = summary;
     });
   } catch (error) {
@@ -259,6 +249,7 @@ const getUserStats = (steamId) => {
   }
 };
 
+// Get last match Data
 const getLastMatchData = (msg) => {
   let lastMatchData = {};
   Object.entries(this.summary.stats).forEach((item) => {
@@ -267,33 +258,59 @@ const getLastMatchData = (msg) => {
     }
   });
 
+  let allrounds =
+    lastMatchData.last_match_t_wins + lastMatchData.last_match_ct_wins;
+
   let lastMatch = {
     mode: lastMatchData["last_match_rounds"] >= 30 ? "competetive" : "casual",
+    kills: lastMatchData["last_match_kills"],
+    deaths: lastMatchData["last_match_deaths"],
     kdr: lastMatchData["last_match_kills"] / lastMatchData["last_match_deaths"],
     mvp: lastMatchData["last_match_mvps"],
-    fav_weapon: allWeaponsID[Number(lastMatchData['last_match_favweapon_id"'])],
+    fav_weapon:
+      allWeaponsID[Number(lastMatchData.last_match_favweapon_id)] !== undefined
+        ? allWeaponsID[Number(lastMatchData.last_match_favweapon_id)]
+        : "none",
+    fav_weapon_kills: lastMatchData.last_match_favweapon_kills,
+    average_damage: lastMatchData.last_match_damage / allrounds,
   };
 
-  // ["last_match_t_wins", 7],
-  //   ["last_match_ct_wins", 8],
-  //   ["last_match_wins", 8],
-  //   ["last_match_max_players", 20],
-  //   ["last_match_kills", 6],
-  //   ["last_match_deaths", 12],
-  //   ["last_match_mvps", 0],
-  //   ["last_match_favweapon_id", 16],
-  //   ["last_match_favweapon_shots", 126],
-  //   ["last_match_favweapon_hits", 17],
-  //   ["last_match_favweapon_kills", 3],
-  //   ["last_match_damage", 934],
-  //   ["last_match_money_spent", 42500],
-  //   ["last_match_dominations", 0],
-  //   ["last_match_revenges", 0],
-  //   ["last_match_contribution_score", 17],
-  //   ["last_match_rounds", 15],
-  //   ["last_match_gg_contribution_score", 0];
+  bot.sendMessage(
+    msg.chat.id,
+    `WP ${this.nickname}!
 
-  console.log(lastMatch);
+    Last Match data:
+    ----------------------------------
+     You have played in ${lastMatch.mode} mode;
+     You've made ${lastMatch.kills} frags, and died ${lastMatch.deaths} times.
+
+     KDR: ${lastMatch.kdr.toFixed(2)};
+     ${lastMatch.kdr >= 1 ? "Good Job!" : "You can do better maaaan!"}
+    ----------------------------------
+     ADR: ${lastMatch.average_damage};
+     ${
+       lastMatch.average_damage >= 100
+         ? "Smoookin shoting, maaaan!"
+         : "Try harder"
+     }
+    ----------------------------------
+     MVP: ${lastMatch.mvp};
+     ${
+       lastMatch.mvp > 0
+         ? "Who is good boy here?!?"
+         : "Next time, man... Next time..."
+     }
+    ----------------------------------
+     FAV.WEAPON: ${lastMatch.fav_weapon};
+     FAV.WEAPON KILLS: ${lastMatch.fav_weapon_kills};
+     ${
+       lastMatch.fav_weapon_kills / lastMatchData["last_match_kills"] >= 0.5
+         ? "You know how to shoot with this baby, try something else"
+         : "Still not impressive..."
+     }
+     ----------------------------------
+     `
+  );
 };
 
 // Reset all bot data
@@ -310,12 +327,8 @@ const resetBot = (msg) => {
 
 // Return most effecxtive gun in each category
 const getMostEffectiveGun = (msg) => {
-  let totalKills = [];
-  let totalHits = [];
-  let totalShots = [];
-
-  mvGun = {
-    pistol: {
+  let totalKills = {
+    pistols: {
       name: "",
       kills: 0,
     },
@@ -342,19 +355,31 @@ const getMostEffectiveGun = (msg) => {
   };
 
   Object.entries(this.summary.stats).forEach((item) => {
-    if (item[0].includes("total_kill")) {
-      totalKills.push(item);
-    }
+    if (item[0].includes("total_kills_")) {
+      let weaponName = item[0].replace("total_kills_", "");
 
-    if (item[0].includes("total_hit")) {
-      totalHits.push(item);
-    }
+      Object.entries(allGuns).forEach((type) => {
+        type[1].forEach((gun) => {
+          if (gun === weaponName) {
+            let value = totalKills[type[0]].kills;
 
-    if (item[0].includes("total_shot")) {
-      totalShots.push(item);
+            // console.log("Category: ", type[0]);
+            // console.log("Name: ", weaponName);
+            // console.log("Current value: ", item[1]);
+            // console.log("Previous value: ", value);
+            // console.log("///////////");
+
+            if (item[1] >= value) {
+              totalKills[type[0]].name = weaponName;
+              totalKills[type[0]].kills = item[1];
+            }
+          }
+        });
+      });
     }
   });
-  // console.log(totalKills);
+
+  console.log(totalKills);
   // console.log(totalShots);
   // console.log(totalHits);
 };
