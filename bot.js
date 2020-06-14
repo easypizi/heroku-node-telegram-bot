@@ -103,6 +103,7 @@ this.summary = {};
 this.adr = 0;
 this.waitingForID = false;
 this.nickname = "";
+this.stattrak = [];
 
 bot.on("polling_error", (error) => {
   console.log(error); // => 'EFATAL'
@@ -118,7 +119,7 @@ bot.on("text", (msg) => {
       `Hello ${name}! This is a list of all possible commands: 
         
           /getkdr - Get your kill damage ratio and total average accuracy.
-          /getbest - Get best weapon in each category, depends on damage.
+          /getbest - Get best weapon in each category, depends on kill.
           /last - get stats of your last match result. 
           /reset - Drop off all search data.
         `
@@ -184,6 +185,18 @@ bot.on("text", (msg) => {
 
     if (msg.text.includes("/last")) {
       getLastMatchData(msg);
+      return;
+    }
+
+    if (msg.text.includes("/stattrak")) {
+      if (this.stattrak.length > 0) {
+        getStatTrak(msg);
+      } else {
+        bot.sendMessage(
+          msg.chat.id,
+          `Hello ${name}! Not enough data for get stattrak - call /getbest firstly and then repeat to stattrak.`
+        );
+      }
       return;
     }
 
@@ -323,6 +336,7 @@ const resetBot = (msg) => {
   this.waitingForID = false;
   const name = msg.from.first_name;
   bot.sendMessage(msg.chat.id, `Ok, ${name}! All data clear!`);
+  this.stattrak = [];
 };
 
 // Return most effecxtive gun in each category
@@ -353,10 +367,13 @@ const getMostEffectiveGun = (msg) => {
       kills: 0,
     },
   };
+  this.stattrak = [];
 
   Object.entries(this.summary.stats).forEach((item) => {
     if (item[0].includes("total_kills_")) {
       let weaponName = item[0].replace("total_kills_", "");
+
+      this.stattrak.push(item);
 
       Object.entries(allGuns).forEach((type) => {
         type[1].forEach((gun) => {
@@ -370,7 +387,9 @@ const getMostEffectiveGun = (msg) => {
             // console.log("///////////");
 
             if (item[1] >= value) {
-              totalKills[type[0]].name = weaponName;
+              const patch = "usp-s";
+              totalKills[type[0]].name =
+                weaponName === "hkp2000" ? patch : weaponName;
               totalKills[type[0]].kills = item[1];
             }
           }
@@ -378,10 +397,61 @@ const getMostEffectiveGun = (msg) => {
       });
     }
   });
+  bot.sendMessage(
+    msg.chat.id,
+    `Ok, ${this.nickname}!
+    
+    This is your's most performatic guns:
+    ----------------------
+    | Pistols | ${totalKills.pistols.name.toUpperCase()} :: ${
+      totalKills.pistols.kills
+    } kills.
+    ----------------------
+    | Riffles |  ${totalKills.rifles.name.toUpperCase()} :: ${
+      totalKills.rifles.kills
+    } kills.
+    ----------------------
+    | Sniper Riffles|  ${totalKills.sniper.name.toUpperCase()} :: ${
+      totalKills.sniper.kills
+    } kills.
+    ----------------------
+    | Shot Gun|  ${totalKills.shotgun.name.toUpperCase()} :: ${
+      totalKills.shotgun.kills
+    } kills.
+    ----------------------
+    | Farm Gun |  ${totalKills.smallgun.name.toUpperCase()} :: ${
+      totalKills.smallgun.kills
+    } kills.
+    ----------------------
+    | Heavy weapon |  ${totalKills.heavy.name.toUpperCase()} :: ${
+      totalKills.heavy.kills
+    } kills.
+    ----------------------
 
-  console.log(totalKills);
-  // console.log(totalShots);
-  // console.log(totalHits);
+    Wow. Awesome! 
+    Also NOW u can run command /stattrak to grab and show all weapon data.
+    `
+  );
+};
+
+// Get all data for the kills.
+const getStatTrak = (msg) => {
+  let message = "";
+
+  this.stattrak.forEach((item) => {
+    let name = item[0].replace("total_kills_", "");
+    message =
+      message +
+      `\n ${name.toUpperCase()}  ::  ${
+        item[1]
+      } kills\n -------------------------`;
+  });
+
+  bot.sendMessage(
+    msg.chat.id,
+    `Ok, ${this.nickname}!
+    ${message}`
+  );
 };
 
 module.exports = bot;
